@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Academic Publishing Stakeholder Map</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
+  :root { --bg: #0f1118; --bg-surface: #181b25; --bg-card: #1e2230; --text-primary: #e8e6e1; --text-secondary: #9a978f; --text-muted: #5e5c56; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text-primary); font-family: 'DM Sans', sans-serif; overflow: hidden; height: 100vh; width: 100vw; }
+  #canvas-container { position: absolute; inset: 0; }
+  canvas { display: block; cursor: default; }
+
+  .header { position: fixed; top: 0; left: 0; right: 0; padding: 24px 32px; z-index: 10; pointer-events: none; background: linear-gradient(to bottom, var(--bg) 0%, transparent 100%); }
+  .header h1 { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; color: var(--text-primary); }
+  .header p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+  .detail-panel { position: fixed; top: 0; right: 0; width: 420px; height: 100vh; background: var(--bg-surface); border-left: 1px solid rgba(255,255,255,0.06); z-index: 20; transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); overflow-y: auto; overflow-x: hidden; }
+  .detail-panel.open { transform: translateX(0); }
+  .detail-panel::-webkit-scrollbar { width: 4px; }
+  .detail-panel::-webkit-scrollbar-track { background: transparent; }
+  .detail-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .panel-close { position: sticky; top: 0; display: flex; justify-content: flex-end; padding: 16px 20px; background: linear-gradient(to bottom, var(--bg-surface) 60%, transparent); z-index: 1; }
+  .panel-close button { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); color: var(--text-secondary); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .panel-close button:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+
+  .panel-content { padding: 0 28px 40px; }
+  .panel-node-indicator { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 10px; position: relative; top: -1px; }
+  .panel-title { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; margin-bottom: 8px; display: flex; align-items: center; }
+  .panel-description { font-size: 14px; line-height: 1.7; color: var(--text-secondary); margin-bottom: 28px; }
+  .panel-section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; margin-top: 8px; }
+  .panel-examples { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .panel-example-tag { font-size: 12px; padding: 5px 12px; border-radius: 20px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); color: var(--text-secondary); }
+
+  .panel-obstacle, .panel-change-efforts { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 16px 18px; margin-bottom: 28px; }
+  .panel-obstacle-label, .panel-change-efforts-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+  .panel-obstacle p, .panel-change-efforts p { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+
+  .panel-relationships { list-style: none; margin-bottom: 28px; }
+  .panel-relationship { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; gap: 12px; align-items: flex-start; }
+  .panel-relationship:last-child { border-bottom: none; }
+  .rel-arrow { flex-shrink: 0; width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; margin-top: 1px; background: rgba(255,255,255,0.05); }
+  .rel-info { flex: 1; }
+  .rel-target { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+  .rel-desc { font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+  .rel-magnitude { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 4px; background: rgba(255,255,255,0.06); color: var(--text-muted); margin-left: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .hint { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--text-muted); background: var(--bg-surface); padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.06); z-index: 10; pointer-events: none; transition: opacity 0.5s; }
+  .tooltip { position: fixed; pointer-events: none; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.1); padding: 8px 14px; border-radius: 8px; font-size: 12px; color: var(--text-secondary); z-index: 25; opacity: 0; transition: opacity 0.15s; max-width: 280px; line-height: 1.5; }
+  .tooltip.visible { opacity: 1; }
+  .tooltip .tt-title { font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+  .tooltip .tt-examples { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 3px; }
+  .tooltip .tt-example { font-size: 10px; padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,0.1); color: var(--text-secondary); }
+
+  .legend { position: fixed; bottom: 24px; right: 24px; display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-muted); background: var(--bg-surface); padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); z-index: 10; }
+  .legend-label { font-weight: 500; margin-right: 2px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  @media (max-width: 600px) { .detail-panel { width: 100vw; } .header h1 { font-size: 18px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Academic Publishing — Stakeholder Dependencies</h1>
+  <p>Click a node to explore relationships and obstacles · Hover sub-groups for details</p>
+</div>
+<div id="canvas-container"><canvas id="graph"></canvas></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="panel-close"><button id="panelClose">✕</button></div>
+  <div class="panel-content" id="panelContent"></div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+<div class="hint" id="hint">Click a node to explore · Hover edges for details</div>
+<div class="legend">
+  <span class="legend-label">Relationship strength:</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:rgba(180,180,180,0.5)"></span>Low</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:rgba(195,160,155,0.55)"></span>Medium</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:rgba(215,130,120,0.6)"></span>High</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:rgba(230,90,75,0.7)"></span>Very high</span>
+</div>
+
+<script>
+const DATA = {
+  nodes: {
+    researchers: {
+      label: "Researchers", color: "#e07a5f",
+      description: "The knowledge producers. Researchers write papers, perform peer review, and serve as journal editors — providing nearly all the labor that sustains academic publishing, mostly uncompensated beyond their salary. Their behavior is primarily shaped by career incentives: they optimize for what gets them hired, promoted, and funded.",
+      examples: ["PhD candidates", "Postdocs", "Professors", "Peer reviewers", "Journal editors"],
+      obstacle: "The rational career move is still to publish in prestigious (often expensive) journals, because that's what evaluation criteria reward. Even researchers who care about open science face a collective action problem — going first is personally risky.",
+      change_efforts: "Some researchers are choosing to publish in Diamond OA journals, signing pledges like the DOA pledge, participating in collective action campaigns (e.g. Free Our Knowledge), and serving as volunteer editors for non-commercial journals. A growing minority are vocal advocates, but the personal career cost remains a deterrent for most.",
+      subnodes: null
+    },
+    institutions: {
+      label: "Research Institutions", color: "#81b29a",
+      description: "Universities and faculties set the evaluation criteria for hiring, promotion, and tenure. They house Recognition & Rewards committees and negotiate with libraries about budgets.",
+      examples: ["Universities", "Faculties", "R&R committees", "Hiring committees", "University boards"],
+      obstacle: "Evaluation reform is underway in the Netherlands but unevenly implemented. Many committees still default to journal prestige metrics even when policy nominally supports broader assessment. Institutional inertia is the core issue.",
+      change_efforts: "The Dutch Recognition & Rewards programme is one of the most advanced in Europe, with many universities formally committing to broader evaluation criteria. Some institutions have hired Open Science coordinators and R&R support staff specifically to drive reform.",
+      subnodes: [
+        { name: "Universities & faculties", description: "Set strategic priorities and allocate budgets. Their leadership determines how seriously R&R reform is taken in practice.", examples: ["University boards", "Faculty deans", "Department heads"] },
+        { name: "Evaluation committees", description: "Make concrete hiring and promotion decisions. Where policy meets practice — and where prestige metrics often reassert themselves.", examples: ["R&R committees", "Hiring committees", "Tenure review boards"] },
+        { name: "Societies & unions", description: "Represent disciplinary communities and negotiate on behalf of researchers. Some societies run journals; unions advocate for open access textbooks.", examples: ["Disciplinary societies", "LSVB", "ALB", "KNAW"] },
+        { name: "OS support staff", description: "Paid positions dedicated to helping researchers adopt open science practices and pushing institutions toward reform from within.", examples: ["Open Science coordinators", "R&R programme staff", "Data stewards"] }
+      ]
+    },
+    libraries: {
+      label: "Libraries", color: "#3d8ecf",
+      description: "University libraries manage subscription budgets, negotiate 'big deals' with publishers, build and maintain open access infrastructure, and advise researchers on compliance with funder mandates.",
+      examples: ["University libraries", "Library consortia (e.g. UKB)", "openjournals.nl", "Institutional repositories"],
+      obstacle: "Most of their budget is locked into legacy subscription contracts with commercial publishers, leaving little room to invest in Diamond OA infrastructure. They also struggle with visibility — researchers often don't know what their library offers.",
+      change_efforts: "Libraries are increasingly building and hosting DOA publishing platforms, developing open infrastructure, and advocating for budget reallocation away from commercial subscriptions. Library consortia like UKB negotiate collectively. Some librarians are actively flipping journals.",
+      subnodes: [
+        { name: "University libraries", description: "Manage subscriptions, run repositories, advise researchers on OA compliance, and increasingly host publishing platforms.", examples: ["Institutional libraries", "Subject librarians", "Scholarly communication teams"] },
+        { name: "Library consortia", description: "Negotiate collectively with publishers on behalf of multiple institutions. Their bargaining power is the main counterweight to publisher leverage.", examples: ["UKB (Netherlands)", "LIBER", "SPARC Europe"] }
+      ]
+    },
+    publishers: {
+      label: "Publishers & Journals", color: "#f2cc8f",
+      description: "Commercial publishers provide prestige, indexing, and distribution but extract enormous costs. Not-for-profit and Diamond OA journals provide similar services at lower or no cost, but often lack the prestige signals researchers need for career advancement.",
+      examples: ["Elsevier", "Springer Nature", "Wiley", "Diamond OA journals", "Society journals"],
+      obstacle: "The prestige economy is self-reinforcing. Established journals have impact factors, indexing, and name recognition that DOA journals take years to build, creating a chicken-and-egg problem for new entrants.",
+      change_efforts: "Some journal editors are flipping their journals from commercial to Diamond OA. Initiatives like Peer Community In offer overlay reviewing that decouples peer review from commercial publishing. New DOA journals demonstrate that high-quality publishing is possible without commercial infrastructure.",
+      subnodes: [
+        { name: "Commercial publishers", description: "Large for-profit companies dominating academic publishing. Provide infrastructure and prestige but extract profits often exceeding 30%.", examples: ["Elsevier", "Springer Nature", "Wiley", "Taylor & Francis"] },
+        { name: "Not-for-profit publishers", description: "Mission-driven organizations publishing without extracting shareholder profit. Often linked to academic societies.", examples: ["University presses", "PLOS", "eLife", "Society-owned publishers"] },
+        { name: "Academic-led journals", description: "Journals where editorial control and operations are led by active researchers. Includes many Diamond OA journals.", examples: ["Diamond OA journals", "Futures Reframed", "Peer Community In"] }
+      ]
+    },
+    funders: {
+      label: "Funders", color: "#b07dd6",
+      description: "Research funders set open access mandates, fund research and sometimes publishing infrastructure, and influence what institutions value. They are the most powerful policy lever in the system.",
+      examples: ["NWO", "Horizon Europe", "KNAW", "Plan S / cOAlition S", "Ministry of Education"],
+      obstacle: "Current mandates require open access but don't distinguish between APC-based gold OA and Diamond OA. Funder money often flows to commercial publishers via APCs rather than supporting sustainable alternatives.",
+      change_efforts: "NWO funded the Horizon Diamond conference, signaling interest in DOA. Plan S / cOAlition S has created momentum for OA mandates across Europe. Some funders are beginning to explore earmarked support for DOA infrastructure.",
+      subnodes: [
+        { name: "National funders", description: "Fund research at the national level and set OA policies. Their mandate design directly shapes whether money flows to commercial or sustainable routes.", examples: ["NWO", "ZonMw"] },
+        { name: "EU / international funders", description: "Set cross-border OA policy. Their requirements cascade into national policy.", examples: ["Horizon Europe", "cOAlition S", "ERC", "Wellcome Trust"] },
+        { name: "Government bodies", description: "Shape the broader regulatory and funding environment for research and publishing.", examples: ["Ministry of Education", "EU policy bodies", "Science councils"] }
+      ]
+    },
+    infrastructure: {
+      label: "Publishing Infrastructure", color: "#6bbf8a",
+      description: "The technical and organizational backbone — indexing, identifiers, metadata, repository networks, and publishing platforms. Every other stakeholder depends on this, but it's often invisible, underfunded, and precarious.",
+      examples: ["DOAJ", "Crossref", "OpenAIRE", "SHERPA/RoMEO", "openjournals.nl", "OJS"],
+      obstacle: "Chronic underfunding and dependence on grants or volunteer labor. Commercial publishers are increasingly building proprietary alternatives (e.g. Scopus vs. open indexing), threatening to fragment the ecosystem.",
+      change_efforts: "OpenAIRE and open-source platforms like OJS demonstrate community-owned infrastructure is viable. The Invest in Open Infrastructure (IOI) initiative advocates for sustainable funding. In the Netherlands, openjournals.nl provides DOA hosting through libraries.",
+      subnodes: [
+        { name: "Indexing & discovery", description: "Services that make research findable and provide the metrics used for evaluation. Control over indexing means control over visibility and prestige.", examples: ["DOAJ", "Scopus", "Web of Science", "OpenAlex"] },
+        { name: "Identifiers & metadata", description: "Persistent identifiers for articles, people, and institutions, plus metadata standards enabling interoperability.", examples: ["Crossref", "DataCite", "ORCID", "DOI system"] },
+        { name: "Publishing platforms", description: "Software and hosting enabling journals to operate. Open-source platforms reduce the barrier to launching DOA journals.", examples: ["OJS", "openjournals.nl", "Janeway", "Lodel"] },
+        { name: "Repository networks", description: "Distributed systems for archiving and providing access to research outputs outside of publisher platforms.", examples: ["OpenAIRE", "SHERPA/RoMEO", "Zenodo", "Institutional repos"] }
+      ]
+    }
+  },
+  edges: [
+    { from: "researchers", to: "publishers", description: "Provide manuscripts, peer review labor, and editorial work — almost entirely uncompensated. This is the content engine of the entire system.", magnitude: "high" },
+    { from: "researchers", to: "institutions", description: "Produce publications, teaching, and grant income that institutions use for rankings and reputation.", magnitude: "high" },
+    { from: "researchers", to: "funders", description: "Apply for grants and comply (or don't) with funder mandates including OA requirements.", magnitude: "medium" },
+    { from: "institutions", to: "researchers", description: "Set evaluation criteria for hiring, promotion, and tenure. The single most powerful lever over researcher behavior.", magnitude: "high" },
+    { from: "institutions", to: "libraries", description: "Allocate budgets and set priorities for what libraries negotiate and provide.", magnitude: "medium" },
+    { from: "libraries", to: "publishers", description: "Pay subscriptions and APC costs through transformative agreements. The largest financial transfer in the system — tens of millions annually in the Netherlands alone.", magnitude: "very high" },
+    { from: "libraries", to: "researchers", description: "Provide access to literature, maintain repositories, offer publishing platforms, and advise on OA compliance. Underused due to low visibility.", magnitude: "medium" },
+    { from: "libraries", to: "infrastructure", description: "Host and maintain publishing platforms and repositories. Libraries are often the institutional home for open infrastructure.", magnitude: "medium" },
+    { from: "publishers", to: "researchers", description: "Provide dissemination, prestige signals (impact factors, journal reputation), and indexing essential for career advancement.", magnitude: "high" },
+    { from: "publishers", to: "institutions", description: "Provide metrics and brand recognition used in evaluations. Also sell data services (SciVal, Pure) back to institutions.", magnitude: "medium" },
+    { from: "publishers", to: "libraries", description: "Negotiate subscription and transformative agreement contracts. Hold significant leverage due to essential content and lack of substitutes.", magnitude: "high" },
+    { from: "publishers", to: "infrastructure", description: "Depend on and contribute to indexing and metadata systems. Commercial publishers also build proprietary alternatives.", magnitude: "medium" },
+    { from: "funders", to: "researchers", description: "Provide grant funding and set OA mandates as conditions. Currently don't distinguish between APC-based and Diamond OA.", magnitude: "high" },
+    { from: "funders", to: "libraries", description: "Fund infrastructure development and publishing platforms. Smaller than library→publisher flow but strategically important.", magnitude: "medium" },
+    { from: "funders", to: "institutions", description: "Shape institutional priorities through funding criteria. When funders signal open science matters, institutions eventually adapt — but with significant lag.", magnitude: "medium" },
+    { from: "funders", to: "infrastructure", description: "Fund infrastructure projects, often through grants. Primary funding mechanism for open infrastructure, but project-based and precarious.", magnitude: "medium" },
+    { from: "infrastructure", to: "publishers", description: "Provide indexing, identifiers, metadata standards, and publishing platforms that publishers depend on to operate.", magnitude: "high" },
+    { from: "infrastructure", to: "researchers", description: "Provide discoverability, persistent identifiers (ORCID, DOIs), and repository access.", magnitude: "medium" },
+    { from: "infrastructure", to: "libraries", description: "Provide the technical systems that libraries use for repositories, OA monitoring, and compliance checking.", magnitude: "medium" }
+  ]
+};
+
+const canvas = document.getElementById('graph');
+const ctx = canvas.getContext('2d');
+const detailPanel = document.getElementById('detailPanel');
+const panelContent = document.getElementById('panelContent');
+const panelClose = document.getElementById('panelClose');
+const tooltipEl = document.getElementById('tooltip');
+const hintEl = document.getElementById('hint');
+
+let W, H, dpr;
+let nodes = [], edges = [];
+let selectedNode = null, hoveredNode = null, hoveredEdge = null, hoveredSubnode = null;
+let panelOpen = false, mouseX = 0, mouseY = 0;
+
+// Camera / zoom state
+let cam = { x: 0, y: 0, zoom: 1 };
+let camTarget = { x: 0, y: 0, zoom: 1 };
+
+// Sub-node expand animation
+let expandProgress = {};
+
+const MAGNITUDE_WEIGHT = { low: 1, medium: 2, high: 3, "very high": 4 };
+function magnitudeColor(mag, alpha) {
+  const c = { low: [180,180,180], medium: [195,160,155], high: [215,130,120], "very high": [230,90,75] }[mag] || [195,160,155];
+  return `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
+}
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (nodes.length) positionNodes();
+}
+
+const LAYOUT_ORDER = ['funders', 'infrastructure', 'libraries', 'publishers', 'institutions'];
+function positionNodes() {
+  // Base positions in world space (don't account for panel here — camera handles it)
+  const cx = W / 2;
+  const cy = H / 2 + 10;
+  const radius = Math.min(W, H) * 0.28;
+  nodes.forEach(n => {
+    if (n.id === 'researchers') { n.wx = cx; n.wy = cy; }
+    else {
+      const idx = LAYOUT_ORDER.indexOf(n.id);
+      const angle = Math.PI / 2 + (idx / LAYOUT_ORDER.length) * Math.PI * 2;
+      n.wx = cx + Math.cos(angle) * radius;
+      n.wy = cy + Math.sin(angle) * radius;
+    }
+  });
+}
+
+function initNodes() {
+  nodes = Object.keys(DATA.nodes).map(key => ({ id: key, wx: 0, wy: 0, baseRadius: key === 'researchers' ? 36 : 32, ...DATA.nodes[key] }));
+  positionNodes();
+  edges = DATA.edges.map(e => ({ ...e, source: nodes.find(n => n.id === e.from), target: nodes.find(n => n.id === e.to), weight: MAGNITUDE_WEIGHT[e.magnitude] || 1 }));
+  Object.keys(DATA.nodes).forEach(id => expandProgress[id] = 0);
+}
+
+// World → screen transform
+function toScreen(wx, wy) {
+  const panOffset = panelOpen ? -210 : 0;
+  return {
+    x: (wx - cam.x) * cam.zoom + W / 2 + panOffset,
+    y: (wy - cam.y) * cam.zoom + H / 2
+  };
+}
+function toWorld(sx, sy) {
+  const panOffset = panelOpen ? -210 : 0;
+  return {
+    x: (sx - W / 2 - panOffset) / cam.zoom + cam.x,
+    y: (sy - H / 2) / cam.zoom + cam.y
+  };
+}
+
+// Sub-node positions in world space
+function getSubnodePositions(n) {
+  const nd = DATA.nodes[n.id];
+  if (!nd.subnodes || !nd.subnodes.length) return [];
+  const progress = expandProgress[n.id] || 0;
+  if (progress < 0.01) return [];
+  const count = nd.subnodes.length;
+  const spreadRadius = n.baseRadius * 0.55 * progress;
+  const dotRadius = 3 + progress * 5;
+  return nd.subnodes.map((sn, i) => {
+    const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+    return { wx: n.wx + Math.cos(angle) * spreadRadius, wy: n.wy + Math.sin(angle) * spreadRadius, worldRadius: dotRadius, data: sn, parentId: n.id, index: i };
+  });
+}
+
+function drawTextWithHalo(text, x, y, font, fillStyle, align, baseline) {
+  ctx.font = font;
+  ctx.textAlign = align || 'center';
+  ctx.textBaseline = baseline || 'top';
+  // Halo
+  ctx.strokeStyle = 'rgba(15,17,24,0.85)';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.strokeText(text, x, y);
+  // Fill
+  ctx.fillStyle = fillStyle;
+  ctx.fillText(text, x, y);
+}
+
+function drawEdge(e, highlight, anySelected) {
+  const ss = toScreen(e.source.wx, e.source.wy);
+  const ts = toScreen(e.target.wx, e.target.wy);
+  const dx = ts.x-ss.x, dy = ts.y-ss.y, dist = Math.sqrt(dx*dx+dy*dy);
+  if (dist < 1) return null;
+  const nx = dx/dist, ny = dy/dist;
+
+  const sr = e.source.baseRadius * cam.zoom;
+  const tr = e.target.baseRadius * cam.zoom;
+  const startX = ss.x+nx*(sr+4*cam.zoom), startY = ss.y+ny*(sr+4*cam.zoom);
+  const endX = ts.x-nx*(tr+12*cam.zoom), endY = ts.y-ny*(tr+12*cam.zoom);
+  const midX = (startX+endX)/2, midY = (startY+endY)/2;
+  const cpx = midX+(-ny*20*cam.zoom), cpy = midY+(nx*20*cam.zoom);
+
+  const bw = (1 + e.weight*1.5) * Math.max(0.5, cam.zoom * 0.7);
+  const ba = 0.15 + e.weight*0.08;
+  const ha = 0.7 + e.weight*0.05;
+  const as2 = Math.max(5, bw * 1.8 + (highlight ? 2 : 0));
+
+  // Compute arrow direction from curve tangent at end
+  const t=0.95;
+  const ax=(1-t)*(1-t)*startX+2*(1-t)*t*cpx+t*t*endX;
+  const ay=(1-t)*(1-t)*startY+2*(1-t)*t*cpy+t*t*endY;
+  const adx=endX-ax,ady=endY-ay,aL=Math.sqrt(adx*adx+ady*ady)||1;
+  const anx2=adx/aL,any2=ady/aL;
+
+  // Shorten line: end it at the base of the arrowhead
+  const lineEndX = endX - anx2 * as2;
+  const lineEndY = endY - any2 * as2;
+
+  ctx.beginPath(); ctx.moveTo(startX,startY); ctx.quadraticCurveTo(cpx,cpy,lineEndX,lineEndY);
+  ctx.strokeStyle = highlight ? magnitudeColor(e.magnitude,ha) : (anySelected ? magnitudeColor(e.magnitude,0.08) : magnitudeColor(e.magnitude,ba));
+  ctx.lineWidth = highlight ? bw+1 : bw; ctx.stroke();
+
+  // Arrowhead: tip at endX/endY, base at lineEndX/lineEndY
+  ctx.beginPath();ctx.moveTo(endX,endY);
+  ctx.lineTo(endX-anx2*as2+any2*as2*0.5,endY-any2*as2-anx2*as2*0.5);
+  ctx.lineTo(endX-anx2*as2-any2*as2*0.5,endY-any2*as2+anx2*as2*0.5);
+  ctx.closePath();
+  ctx.fillStyle = highlight ? magnitudeColor(e.magnitude,ha) : (anySelected ? magnitudeColor(e.magnitude,0.08) : magnitudeColor(e.magnitude,ba));
+  ctx.fill();
+  return {sx:startX,sy:startY,cpx,cpy,ex:endX,ey:endY};
+}
+
+function drawNode(n) {
+  const isSelected = selectedNode === n.id;
+  const isHovered = hoveredNode === n.id;
+  const isConnected = selectedNode && edges.some(e => (e.from===selectedNode&&e.to===n.id)||(e.to===selectedNode&&e.from===n.id));
+  const dimmed = selectedNode && !isSelected && !isConnected;
+  const nd = DATA.nodes[n.id];
+  const progress = expandProgress[n.id] || 0;
+  const s = toScreen(n.wx, n.wy);
+  const r = n.baseRadius * cam.zoom;
+
+  // Glow
+  if (isHovered || isSelected) {
+    const glow = ctx.createRadialGradient(s.x,s.y,r*0.5,s.x,s.y,r*2);
+    glow.addColorStop(0,n.color+'25');glow.addColorStop(1,'transparent');
+    ctx.beginPath();ctx.arc(s.x,s.y,r*2,0,Math.PI*2);ctx.fillStyle=glow;ctx.fill();
+  }
+
+  // Main circle
+  ctx.beginPath();ctx.arc(s.x,s.y,r,0,Math.PI*2);
+  ctx.fillStyle = dimmed ? '#1a1d28' : (n.color+'10');ctx.fill();
+  ctx.strokeStyle = dimmed ? 'rgba(255,255,255,0.04)' : (n.color+(isHovered||isSelected?'aa':'44'));
+  ctx.lineWidth = (isHovered||isSelected?2:1.5); ctx.stroke();
+
+  // Sub-nodes
+  if (nd.subnodes && nd.subnodes.length) {
+    const snPositions = getSubnodePositions(n);
+    if (progress < 0.01) {
+      // Collapsed: tiny dots inside
+      const count = nd.subnodes.length;
+      for (let i = 0; i < count; i++) {
+        const a = (i/count)*Math.PI*2 - Math.PI/2;
+        const dotDist = n.baseRadius * 0.45 * cam.zoom;
+        ctx.beginPath();ctx.arc(s.x+Math.cos(a)*dotDist, s.y+Math.sin(a)*dotDist, 3*cam.zoom, 0,Math.PI*2);
+        ctx.fillStyle = dimmed ? 'rgba(255,255,255,0.04)' : (n.color+'55');ctx.fill();
+      }
+    } else {
+      // Expanded sub-nodes
+      snPositions.forEach((sn, i) => {
+        const ss = toScreen(sn.wx, sn.wy);
+        const sr = sn.worldRadius * cam.zoom;
+        const isHovSn = hoveredSubnode && hoveredSubnode.parentId===n.id && hoveredSubnode.index===i;
+        ctx.beginPath();ctx.arc(ss.x,ss.y,sr,0,Math.PI*2);
+        ctx.fillStyle = isHovSn ? (n.color+'dd') : (n.color+'77');ctx.fill();
+        if (isHovSn) { ctx.strokeStyle=n.color;ctx.lineWidth=1.5;ctx.stroke(); }
+
+        // Label
+        if (progress > 0.5) {
+          const labelAlpha = Math.min(1,(progress-0.5)/0.5);
+          const la = (i/nd.subnodes.length)*Math.PI*2 - Math.PI/2;
+
+          // Position label radially outward from the sub-node dot
+          const labelDist = sr + 12 * cam.zoom;
+          let lx = ss.x + Math.cos(la) * labelDist;
+          let ly = ss.y + Math.sin(la) * labelDist;
+
+          // Determine text alignment based on angle
+          let align = 'center';
+          if (la > -Math.PI/4 && la < Math.PI/4) align = 'left'; // right side
+          else if (la > 3*Math.PI/4 || la < -3*Math.PI/4) align = 'right'; // left side
+
+          const fontSize = Math.max(9, Math.min(12, 11 * cam.zoom));
+          const col = `rgba(232,230,225,${labelAlpha * (isHovSn ? 1 : 0.65)})`;
+          drawTextWithHalo(sn.data.name, lx, ly, `500 ${fontSize}px 'DM Sans', sans-serif`, col, align, 'middle');
+        }
+      });
+    }
+  } else {
+    // No subnodes: central dot
+    ctx.beginPath();ctx.arc(s.x,s.y,5*cam.zoom,0,Math.PI*2);
+    ctx.fillStyle = dimmed ? 'rgba(255,255,255,0.06)' : n.color;ctx.fill();
+  }
+
+  // Node label
+  const fontSize = Math.max(10, Math.min(14, 13 * cam.zoom));
+  const labelCol = dimmed ? 'rgba(255,255,255,0.1)' : (isHovered||isSelected ? '#fff' : 'rgba(255,255,255,0.7)');
+  drawTextWithHalo(n.label, s.x, s.y + r + 10*cam.zoom, `500 ${fontSize}px 'DM Sans', sans-serif`, labelCol, 'center', 'top');
+}
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,0.015)';ctx.lineWidth=1;
+  const gridStep = 60;
+  for(let x=0;x<W;x+=gridStep){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=gridStep){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  const edgePaths=[];
+  edges.forEach(e=>{
+    const isHL=hoveredEdge===e||(selectedNode&&(e.from===selectedNode||e.to===selectedNode));
+    const p=drawEdge(e,isHL,!!selectedNode);
+    if(p)edgePaths.push({edge:e,path:p});
+  });
+  nodes.forEach(drawNode);
+  canvas._edgePaths=edgePaths;
+}
+
+// Animation loop
+function loop() {
+  // Animate camera
+  const ease = 0.08;
+  cam.x += (camTarget.x - cam.x) * ease;
+  cam.y += (camTarget.y - cam.y) * ease;
+  cam.zoom += (camTarget.zoom - cam.zoom) * ease;
+
+  // Animate expand
+  Object.keys(DATA.nodes).forEach(id => {
+    const target = (selectedNode === id && DATA.nodes[id].subnodes) ? 1 : 0;
+    const cur = expandProgress[id] || 0;
+    expandProgress[id] = cur + (target - cur) * 0.1;
+    if (Math.abs(expandProgress[id] - target) < 0.005) expandProgress[id] = target;
+  });
+
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// Hit testing (in screen space)
+function getNodeAt(sx, sy) {
+  for (let i = nodes.length-1; i >= 0; i--) {
+    const n = nodes[i];
+    const s = toScreen(n.wx, n.wy);
+    const r = n.baseRadius * cam.zoom;
+    const dx = sx-s.x, dy = sy-s.y;
+    if (dx*dx+dy*dy < (r+8)*(r+8)) return n;
+  }
+  return null;
+}
+
+function getSubnodeAt(sx, sy) {
+  if (!selectedNode) return null;
+  const n = nodes.find(nd => nd.id === selectedNode);
+  if (!n) return null;
+  const positions = getSubnodePositions(n);
+  for (let i = positions.length-1; i >= 0; i--) {
+    const sn = positions[i];
+    const ss = toScreen(sn.wx, sn.wy);
+    const r = sn.worldRadius * cam.zoom;
+    const dx = sx-ss.x, dy = sy-ss.y;
+    if (dx*dx+dy*dy < (r+6)*(r+6)) return sn;
+  }
+  return null;
+}
+
+function getEdgeAt(sx, sy) {
+  if (!canvas._edgePaths) return null;
+  let closest=null, closestDist=18;
+  canvas._edgePaths.forEach(({edge,path})=>{
+    for(let t=0;t<=1;t+=0.04){
+      const px=(1-t)*(1-t)*path.sx+2*(1-t)*t*path.cpx+t*t*path.ex;
+      const py=(1-t)*(1-t)*path.sy+2*(1-t)*t*path.cpy+t*t*path.ey;
+      const d=Math.sqrt((sx-px)*(sx-px)+(sy-py)*(sy-py));
+      if(d<closestDist){closestDist=d;closest=edge;}
+    }
+  });
+  return closest;
+}
+
+function showTooltip(content,ex,ey){
+  tooltipEl.innerHTML=content;
+  tooltipEl.style.left=(ex+14)+'px';tooltipEl.style.top=(ey-10)+'px';
+  tooltipEl.classList.add('visible');
+  requestAnimationFrame(()=>{
+    const tr=tooltipEl.getBoundingClientRect();
+    if(tr.right>W-10)tooltipEl.style.left=(ex-tr.width-14)+'px';
+    if(tr.bottom>H-10)tooltipEl.style.top=(ey-tr.height-10)+'px';
+  });
+}
+function hideTooltip(){tooltipEl.classList.remove('visible');}
+
+function setCameraTarget(nodeId) {
+  if (nodeId) {
+    const n = nodes.find(nd => nd.id === nodeId);
+    if (n) {
+      camTarget.x = n.wx + (panelOpen ? 210 / 1.8 : 0);
+      camTarget.y = n.wy;
+      camTarget.zoom = 1.8;
+    }
+  } else {
+    camTarget.x = W / 2;
+    camTarget.y = H / 2 + 10;
+    camTarget.zoom = 1;
+  }
+}
+
+function openPanel(nodeId) {
+  const n = DATA.nodes[nodeId];
+  if (!n) return;
+  selectedNode = nodeId;
+  panelOpen = true;
+  setCameraTarget(nodeId);
+
+  const inEdges = DATA.edges.filter(e => e.to === nodeId);
+  const outEdges = DATA.edges.filter(e => e.from === nodeId);
+
+  let html = `
+    <div class="panel-title"><span class="panel-node-indicator" style="background:${n.color}"></span>${n.label}</div>
+    <p class="panel-description">${n.description}</p>
+    <div class="panel-section-title">Examples</div>
+    <div class="panel-examples">${n.examples.map(e=>`<span class="panel-example-tag">${e}</span>`).join('')}</div>
+    <div class="panel-obstacle"><div class="panel-obstacle-label">Primary Obstacle</div><p>${n.obstacle}</p></div>
+    <div class="panel-change-efforts"><div class="panel-change-efforts-label">Ongoing Change Efforts</div><p>${n.change_efforts}</p></div>
+  `;
+  if (outEdges.length) {
+    html+=`<div class="panel-section-title">Influences</div><ul class="panel-relationships">`;
+    outEdges.forEach(e=>{const t=DATA.nodes[e.to];html+=`<li class="panel-relationship"><div class="rel-arrow" style="color:${t.color}">→</div><div class="rel-info"><div class="rel-target">${t.label}<span class="rel-magnitude">${e.magnitude}</span></div><div class="rel-desc">${e.description}</div></div></li>`;});
+    html+=`</ul>`;
+  }
+  if (inEdges.length) {
+    html+=`<div class="panel-section-title">Influenced by</div><ul class="panel-relationships">`;
+    inEdges.forEach(e=>{const s=DATA.nodes[e.from];html+=`<li class="panel-relationship"><div class="rel-arrow" style="color:${s.color}">←</div><div class="rel-info"><div class="rel-target">${s.label}<span class="rel-magnitude">${e.magnitude}</span></div><div class="rel-desc">${e.description}</div></div></li>`;});
+    html+=`</ul>`;
+  }
+
+  panelContent.innerHTML = html;
+  detailPanel.classList.add('open');
+}
+
+function closePanel() {
+  selectedNode = null;
+  panelOpen = false;
+  detailPanel.classList.remove('open');
+  setCameraTarget(null);
+}
+
+// Events
+canvas.addEventListener('mousemove',(e)=>{
+  const rect=canvas.getBoundingClientRect();
+  mouseX=e.clientX-rect.left;mouseY=e.clientY-rect.top;
+
+  const sn=getSubnodeAt(mouseX,mouseY);
+  if(sn){
+    hoveredSubnode=sn;hoveredNode=null;hoveredEdge=null;canvas.style.cursor='pointer';
+    let tt=`<div class="tt-title">${sn.data.name}</div>${sn.data.description}`;
+    if(sn.data.examples)tt+=`<div class="tt-examples">${sn.data.examples.map(ex=>`<span class="tt-example">${ex}</span>`).join('')}</div>`;
+    showTooltip(tt,e.clientX,e.clientY);return;
+  }
+  hoveredSubnode=null;
+
+  const node=getNodeAt(mouseX,mouseY);
+  hoveredNode=node?node.id:null;
+  canvas.style.cursor=node?'pointer':'default';
+
+  if(!node){
+    const edge=getEdgeAt(mouseX,mouseY);
+    hoveredEdge=edge;
+    if(edge){
+      const s=DATA.nodes[edge.from],t=DATA.nodes[edge.to];
+      showTooltip(`<strong>${s.label} → ${t.label}</strong><br>${edge.description}`,e.clientX,e.clientY);
+    }else{hideTooltip();}
+  }else{hoveredEdge=null;hideTooltip();}
+});
+
+canvas.addEventListener('click',(e)=>{
+  const rect=canvas.getBoundingClientRect();
+  const sx=e.clientX-rect.left,sy=e.clientY-rect.top;
+  const sn=getSubnodeAt(sx,sy);
+  if(sn)return;
+  const node=getNodeAt(sx,sy);
+  if(node){
+    if(selectedNode===node.id)closePanel();
+    else{openPanel(node.id);hintEl.style.opacity=0;}
+  }
+});
+
+canvas.addEventListener('mouseleave',()=>{hoveredNode=null;hoveredEdge=null;hoveredSubnode=null;hideTooltip();});
+panelClose.addEventListener('click',closePanel);
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closePanel();});
+window.addEventListener('resize',resize);
+
+// Init
+resize();initNodes();
+cam.x=W/2;cam.y=H/2+10;cam.zoom=1;
+camTarget.x=cam.x;camTarget.y=cam.y;camTarget.zoom=1;
+requestAnimationFrame(loop);
+setTimeout(()=>{hintEl.style.opacity=0;},6000);
+</script>
+</body>
+</html>
